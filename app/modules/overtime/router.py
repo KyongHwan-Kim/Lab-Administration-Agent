@@ -14,6 +14,8 @@ from app.modules.overtime.service import (
     attach_sheet_receipt,
     create_entry,
     create_receipt_entries,
+    preview_receipt_entries,
+    save_extracted_entry,
     create_work_log,
     delete_entry,
     entry_pdf_path,
@@ -122,6 +124,28 @@ def post_external(
 @router.get("/unassigned")
 def get_unassigned(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     return unassigned_table(db, user)
+
+
+@router.post("/receipts/preview")
+async def post_receipt_preview(
+    delivery: list[UploadFile] | None = File(None),
+    receipt: list[UploadFile] | None = File(None),
+    _: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return {"items": await preview_receipt_entries(db, delivery, receipt)}
+
+
+@router.post("/receipts/save", status_code=201)
+async def post_receipt_save(
+    payload: str = Form(...),
+    gid: str = Form(""),
+    delivery: list[UploadFile] | None = File(None),
+    receipt: list[UploadFile] | None = File(None),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    return await save_extracted_entry(db, user, payload, gid, delivery, receipt)
 
 
 @router.post("/receipts", status_code=201)

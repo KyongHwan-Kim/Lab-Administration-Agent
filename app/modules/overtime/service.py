@@ -12,10 +12,10 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.modules.overtime.categories import ExpenseCategory, normalize_expense_category
 from app.modules.overtime.extract_agent import ExtractionError, UsageExtractAgent
-from app.modules.overtime.models import OvertimeEntry, SheetReceipt, UsageMemo, WorkLog
+from app.modules.overtime.models import OvertimeEntry, SheetReceipt, SheetRow, UsageMemo, WorkLog
 from app.modules.overtime.columns import DRAFT_COLUMNS
 from app.modules.overtime.pdf import MAX_IMAGES, build_column_pdf, build_evidence_pdf, read_image_files
-from app.modules.overtime.sheets import SheetTable, load_sheet
+from app.modules.overtime.sheets import SheetTable
 from app.modules.overtime.work_log import build_usage_document, render_document, render_overtime_log
 from app.modules.projects.models import ProjectCard
 from app.modules.projects.service import find_project_by_key, match_card_project
@@ -24,7 +24,7 @@ from app.modules.users.models import User
 AUTO_COLUMNS = {"순번", "글자수"}
 APP_FIELDS = ("메모", "추천인원")
 MAX_FIELD_LENGTH = 4000
-LOCAL_COLUMNS = [
+SHEET_COLUMNS = [
     "순번",
     "영수증 제출",
     "사용일자",
@@ -38,14 +38,16 @@ LOCAL_COLUMNS = [
     "회의장소",
     "총인원",
     "회의참석자",
+    "회의목적",
     "회의내용",
+    "참석인원",
     "글자수",
 ]
 
 
 async def project_table(db: Session, user: User, gid: str) -> dict:
     project = find_project_by_key(db, gid)
-    sheet = await _sheet_for(project)
+    sheet = _sheet_for(db, project)
     entries = (
         db.query(OvertimeEntry)
         .filter(OvertimeEntry.project_gid == gid)
@@ -105,7 +107,7 @@ async def create_entry(
     receipt: list[UploadFile] | None,
 ) -> dict:
     project = find_project_by_key(db, gid)
-    sheet = await _sheet_for(project)
+    sheet = _sheet_for(db, project)
     fields = _parse_payload(payload)
     values = _build_values(db, sheet, fields)
     images = await read_image_files(delivery)
@@ -161,12 +163,10 @@ def unassigned_table(db: Session, user: User) -> dict:
     }
 
 
-async def create_receipt_entries(
-    db: Session,
-    user: User,
+async def _receipt_images(
     delivery: list[UploadFile] | None,
     receipt: list[UploadFile] | None,
-) -> list[dict]:
+) -> tuple[list[bytes], list[bytes]]:
     delivery_images = await read_image_files(delivery)
     receipt_images = await read_image_files(receipt)
     images = [*delivery_images, *receipt_images]
@@ -177,11 +177,73 @@ async def create_receipt_entries(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"이미지는 한 번에 {MAX_IMAGES}장까지 올릴 수 있습니다.",
         )
+    return delivery_images, receipt_images
+
+
+async def _draft_usages(db: Session, delivery_images: list[bytes], receipt_images: list[bytes]):
     try:
         cards = [(card.project.name, card.number) for card in db.query(ProjectCard).all() if card.project is not None]
-        drafted = await UsageExtractAgent().run(delivery_images, receipt_images, cards)
+        return await UsageExtractAgent().run(delivery_images, receipt_images, cards)
     except ExtractionError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+
+async def preview_receipt_entries(
+    db: Session,
+    delivery: list[UploadFile] | None,
+    receipt: list[UploadFile] | None,
+) -> list[dict]:
+    delivery_images, receipt_images = await _receipt_images(delivery, receipt)
+    drafted = await _draft_usages(db, delivery_images, receipt_images)
+    items = []
+    for item in drafted:
+        project = match_card_project(db, item.card_number, item.matched_project)
+        items.append(
+            {
+                "project_gid": project.entry_key if project is not None else "",
+                "project_name": project.name if project is not None else "",
+                "values": item.values,
+            }
+        )
+    return items
+
+
+async def save_extracted_entry(
+    db: Session,
+    user: User,
+    payload: str,
+    gid: str,
+    delivery: list[UploadFile] | None,
+    receipt: list[UploadFile] | None,
+) -> dict:
+    delivery_images, receipt_images = await _receipt_images(delivery, receipt)
+    fields = _parse_payload(payload)
+    evidence = build_evidence_pdf(delivery_images, receipt_images)
+    entry = OvertimeEntry(project_gid=None, project_name=None, data={}, created_by=user.id)
+    project_key = gid.strip()
+    if project_key:
+        project = find_project_by_key(db, project_key)
+        await _place_extracted(db, entry, project, fields)
+    else:
+        entry.data = _draft_values(fields)
+    db.add(entry)
+    db.flush()
+    path = settings.pdf_dir / f"{entry.id}.pdf"
+    path.write_bytes(evidence)
+    entry.pdf_path = str(path)
+    db.commit()
+    db.refresh(entry)
+    return {"id": entry.id, "project_name": entry.project_name or "", "values": entry.data}
+
+
+async def create_receipt_entries(
+    db: Session,
+    user: User,
+    delivery: list[UploadFile] | None,
+    receipt: list[UploadFile] | None,
+) -> list[dict]:
+    delivery_images, receipt_images = await _receipt_images(delivery, receipt)
+    drafted = await _draft_usages(db, delivery_images, receipt_images)
     evidence = build_evidence_pdf(delivery_images, receipt_images)
     created: list[OvertimeEntry] = []
     for item in drafted:
@@ -199,6 +261,16 @@ async def create_receipt_entries(
     for entry in created:
         db.refresh(entry)
     return [{"id": entry.id, "project_name": entry.project_name or "", "values": entry.data} for entry in created]
+
+
+def _draft_values(fields: dict[str, str]) -> dict[str, str]:
+    values = {column: _clean_field(column, fields.get(column, "")) for column in DRAFT_COLUMNS}
+    for key in APP_FIELDS:
+        if key in fields:
+            values[key] = _clean_field(key, fields.get(key))
+    if values.get("연구비항목"):
+        values["연구비항목"] = normalize_expense_category(values["연구비항목"], required=False)
+    return values
 
 
 def update_entry(db: Session, user: User, entry_id: int, fields: dict[str, str]) -> dict:
@@ -240,7 +312,7 @@ def update_entry(db: Session, user: User, entry_id: int, fields: dict[str, str])
 
 
 async def _place_extracted(db: Session, entry: OvertimeEntry, project, values: dict[str, str]) -> None:
-    sheet = await _sheet_for(project)
+    sheet = _sheet_for(db, project)
     placed = {column: values.get(column, "").strip() for column in sheet.columns if column not in AUTO_COLUMNS}
     if "연구비항목" in placed:
         placed["연구비항목"] = normalize_expense_category(placed.get("연구비항목", ""), required=False)
@@ -261,7 +333,7 @@ async def _place_extracted(db: Session, entry: OvertimeEntry, project, values: d
 async def assign_entry(db: Session, user: User, entry_id: int, gid: str) -> dict:
     entry = _own_unassigned(db, user, entry_id)
     project = find_project_by_key(db, gid)
-    sheet = await _sheet_for(project)
+    sheet = _sheet_for(db, project)
     stored = entry.data or {}
     fields = {column: str(stored.get(column, "")) for column in sheet.columns}
     for key in APP_FIELDS:
@@ -304,7 +376,7 @@ async def attach_entry_pdf(db: Session, user: User, entry_id: int, files: list[U
 
 async def attach_sheet_receipt(db: Session, user: User, gid: str, row_key: str, files: list[UploadFile] | None) -> dict:
     project = find_project_by_key(db, gid)
-    sheet = await _sheet_for(project)
+    sheet = _sheet_for(db, project)
     if row_key not in {sheet_row_key(row) for row in sheet.rows}:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="연결할 사용 내역을 찾을 수 없습니다.")
     pdf = await receipt_pdf_bytes(files)
@@ -682,10 +754,14 @@ def entry_pdf_path(db: Session, entry_id: int) -> Path:
     return path
 
 
-async def _sheet_for(project) -> SheetTable:
-    if project.sheet_gid:
-        return await load_sheet(project.sheet_gid, project.name)
-    return SheetTable(gid=project.entry_key, name=project.name, columns=LOCAL_COLUMNS, notes=[], common_notes=[], rows=[])
+def _sheet_for(db: Session, project) -> SheetTable:
+    gid = project.entry_key
+    stored = db.query(SheetRow).filter(SheetRow.project_gid == gid).order_by(SheetRow.id).all()
+    rows = []
+    for item in stored:
+        data = item.data if isinstance(item.data, dict) else {}
+        rows.append({column: str(data.get(column, "") or "") for column in SHEET_COLUMNS})
+    return SheetTable(gid=gid, name=project.name, columns=list(SHEET_COLUMNS), notes=[], common_notes=[], rows=rows)
 
 
 def sheet_row_key(values: dict) -> str:

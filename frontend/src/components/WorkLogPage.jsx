@@ -313,7 +313,7 @@ function LetterheadPage({ pageIndex, pageCount, children }) {
       }}
     >
       {pageCount > 1 && (
-        <p className="absolute right-[6%] top-[1.5%] text-[10px] text-neutral-500">
+        <p className="absolute right-[6%] top-[1.5%] text-[11px] text-neutral-500">
           {pageIndex + 1} / {pageCount}
         </p>
       )}
@@ -324,10 +324,12 @@ function LetterheadPage({ pageIndex, pageCount, children }) {
 
 function SheetBody({ document, rows, slots, onDocument, onRow, onRemoveRow }) {
   return (
-    <div className="flex h-full flex-col">
-      <p className="text-[10px] tracking-wide">| 필수 첨부 양식 |</p>
-      <h2 className="mt-1 text-center text-lg font-semibold tracking-[0.4em]">초과근무일지</h2>
-      <table className="mt-2 w-full border-collapse border border-black text-[11px]">
+    <div>
+      <p className="mb-4 border-b-4 border-red-600 pb-1 text-[11px] tracking-wide">| 필수 첨부 양식 |</p>
+      <h2 className="mb-4 border-b-4 border-red-600 pb-1.5 text-center text-[16px] font-semibold tracking-[0.55em]">
+        초과근무일지
+      </h2>
+      <table className="w-full border-collapse border border-black text-[12px]">
         <tbody>
           <tr>
             <FormLabel>과제번호</FormLabel>
@@ -360,13 +362,21 @@ function SheetBody({ document, rows, slots, onDocument, onRow, onRemoveRow }) {
           </tr>
         </tbody>
       </table>
-      <table className="mt-2 w-full flex-1 border-collapse border border-black text-[11px]">
+      <table className="mt-4 w-full table-fixed border-collapse border border-black text-[12px]">
+        <colgroup>
+          <col className="w-[15%]" />
+          <col className="w-[13%]" />
+          <col className="w-[30%]" />
+          <col className="w-[20%]" />
+          <col className="w-[11%]" />
+          <col className="w-[11%]" />
+        </colgroup>
         <thead>
           <tr className="bg-neutral-50">
             <th className="border border-black px-1 py-1 font-medium">
               <Required />
               근무일자
-              <span className="block text-[9px] font-normal">(년-월-일)</span>
+              <span className="block text-[10px] font-normal">(년-월-일)</span>
             </th>
             <th className="border border-black px-1 py-1 font-medium">
               <Required />
@@ -380,14 +390,14 @@ function SheetBody({ document, rows, slots, onDocument, onRow, onRemoveRow }) {
               <Required />
               근무장소
             </th>
-            <th className="w-16 border border-black px-1 py-1 font-medium">
+            <th className="border border-black px-1 py-1 font-medium">
               <Required />
               시간
             </th>
-            <th className="w-16 border border-black px-1 py-1 font-medium">
+            <th className="border border-black px-1 py-1 font-medium">
               <Required />
               근무자
-              <span className="block text-[9px] font-normal">본인사인</span>
+              <span className="block text-[10px] font-normal">본인사인</span>
             </th>
           </tr>
         </thead>
@@ -395,21 +405,27 @@ function SheetBody({ document, rows, slots, onDocument, onRow, onRemoveRow }) {
           {slots.map((index, slot) => {
             const row = index === null ? null : rows[index];
             return (
-              <tr key={slot} className="h-8">
-                <td className="border border-black px-0.5 py-0.5 align-middle">
-                  {row && (
-                    <div className="flex items-center justify-center">
-                      <CellInput value={row.year} onChange={(value) => onRow(index, { year: value })} className="w-10" />
-                      <CellInput value={row.month} onChange={(value) => onRow(index, { month: value })} className="w-6" />
-                      <CellInput value={row.day} onChange={(value) => onRow(index, { day: value })} className="w-6" />
+              <tr key={slot} className="h-9">
+                <td className="border border-black p-0 align-middle">
+                  <div className="grid h-9 grid-cols-3">
+                    <div className="h-full border-r border-solid border-black">
+                      {row && <CellInput value={row.year} onChange={(value) => onRow(index, { year: value })} />}
                     </div>
-                  )}
+                    <div className="h-full border-r border-solid border-black">
+                      {row && <CellInput value={row.month} onChange={(value) => onRow(index, { month: value })} />}
+                    </div>
+                    <div className="h-full">{row && <CellInput value={row.day} onChange={(value) => onRow(index, { day: value })} />}</div>
+                  </div>
                 </td>
-                <td className="border border-black px-0.5 py-0.5 align-middle">
+                <td className="relative border border-black px-0.5 py-0.5 align-middle">
                   {row && <CellInput value={row.worker} onChange={(value) => onRow(index, { worker: value })} />}
                   {row && rows.length > 1 && (
-                    <button type="button" className="block w-full text-[9px] text-neutral-500" onClick={() => onRemoveRow(index)}>
-                      행 삭제
+                    <button
+                      type="button"
+                      className="absolute top-0 right-0 px-0.5 text-[8px] leading-none text-neutral-400"
+                      onClick={() => onRemoveRow(index)}
+                    >
+                      삭제
                     </button>
                   )}
                 </td>
@@ -418,7 +434,7 @@ function SheetBody({ document, rows, slots, onDocument, onRow, onRemoveRow }) {
                     <textarea
                       value={document.content}
                       onChange={(event) => onDocument({ content: event.target.value })}
-                      className="h-full min-h-16 w-full resize-none bg-transparent text-center outline-none"
+                      className="h-full min-h-24 w-full resize-none bg-transparent text-center outline-none"
                     />
                   </td>
                 )}
@@ -427,7 +443,7 @@ function SheetBody({ document, rows, slots, onDocument, onRow, onRemoveRow }) {
                     <textarea
                       value={document.place}
                       onChange={(event) => onDocument({ place: event.target.value })}
-                      className="h-full min-h-16 w-full resize-none bg-transparent text-center outline-none"
+                      className="h-full min-h-24 w-full resize-none bg-transparent text-center outline-none"
                     />
                   </td>
                 )}
@@ -442,22 +458,27 @@ function SheetBody({ document, rows, slots, onDocument, onRow, onRemoveRow }) {
           })}
         </tbody>
       </table>
-      <div className="mt-2 space-y-0.5 text-[9px] leading-4">
-        <p>※ [영수증첨부] : 상한 1인 30,000원, 법인신용카드 영수증만 인정</p>
-        <p>※ [필수항목] *본인사인에는 근무자의 자필사인 기재</p>
+      <div className="mt-4 space-y-0.5 border border-black px-2 py-1.5 text-[10px] leading-4">
+        <p>
+          ※ <span className="font-bold">[영수증첨부]</span> : 상한 1인 30,000원, 법인신용카드 영수증만 인정
+        </p>
+        <p>
+          ※ <span className="font-bold">[필수항목]</span> *본인사인에는 근무자의 자필사인 기재
+        </p>
         <p className="pl-12">*연구책임자의 확인(날인 또는 사인) 기재하여 청구 시 파일 업로드함</p>
       </div>
-      <div className="mt-2 flex items-center justify-end gap-3 text-[11px]">
+      <div className="mt-2 flex items-center justify-end gap-3 text-[12px]">
         <span>
           <Required />
           연구책임자
         </span>
         <span className="min-w-12 text-center">{document.principal_investigator}</span>
-        {document.pi_signature ? (
-          <img src={document.pi_signature} alt="" className="h-10 w-10 object-contain" />
-        ) : (
-          <span className="inline-block h-10 w-10" />
-        )}
+        <span className="relative inline-flex h-10 w-10 items-center justify-center">
+          (인)
+          {document.pi_signature ? (
+            <img src={document.pi_signature} alt="" className="absolute inset-0 h-10 w-10 object-contain" />
+          ) : null}
+        </span>
       </div>
     </div>
   );

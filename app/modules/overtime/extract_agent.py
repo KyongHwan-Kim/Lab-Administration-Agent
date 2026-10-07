@@ -110,10 +110,9 @@ class UsageExtractAgent:
     ) -> list[ObservedUsage]:
         api_key = settings.openai_api_key.strip()
         if not api_key:
-            raise ExtractionError("항목 추출에 필요한 OpenAI API 키가 없습니다. .env 의 OPENAI_API_KEY 를 설정해 주세요.")
+            raise ExtractionError("AI 내역 추출에 필요한 OpenAI API 키가 없습니다. .env 의 OPENAI_API_KEY 를 설정해 주세요.")
         payload = {
             "model": settings.openai_model.strip() or "gpt-4.1-mini",
-            "temperature": 0,
             "messages": [
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": _message_parts(delivery, receipt, cards)},
@@ -131,14 +130,14 @@ class UsageExtractAgent:
                     json=payload,
                 )
         except httpx.HTTPError as exc:
-            raise ExtractionError("항목 추출 서비스에 연결하지 못했습니다.") from exc
+            raise ExtractionError("AI 내역 추출 서비스에 연결하지 못했습니다.") from exc
         if response.status_code >= 400:
             raise ExtractionError(_api_error(response))
         try:
             content = response.json()["choices"][0]["message"]["content"]
             raw_items = json.loads(content).get("items", [])
         except (KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
-            raise ExtractionError("항목 추출 결과를 해석하지 못했습니다.") from exc
+            raise ExtractionError("AI 내역 추출 결과를 해석하지 못했습니다.") from exc
         return [_observed(item) for item in raw_items if isinstance(item, dict)]
 
     def _apply_rules(self, item: ObservedUsage) -> ExtractedUsage:

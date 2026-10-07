@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
-import fallbackLogo from "../assets/aisl-logo.png";
 
-export function BrandLogo({ revision = 0, className, alt = "AISL LAB" }) {
-  const [src, setSrc] = useState(fallbackLogo);
+export function BrandLogo({ revision = 0, className, alt = "로고" }) {
+  const [src, setSrc] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -15,7 +14,7 @@ export function BrandLogo({ revision = 0, className, alt = "AISL LAB" }) {
         setSrc(objectUrl);
       })
       .catch(() => {
-        if (active) setSrc(fallbackLogo);
+        if (active) setSrc("");
       });
     return () => {
       active = false;
@@ -23,5 +22,6 @@ export function BrandLogo({ revision = 0, className, alt = "AISL LAB" }) {
     };
   }, [revision]);
 
+  if (!src) return null;
   return <img src={src} alt={alt} className={className} />;
 }

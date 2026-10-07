@@ -13,7 +13,7 @@ from app.modules.branding.router import router as branding_router
 from app.modules.auth.service import seed_admin
 from app.modules.overtime.router import router as overtime_router
 from app.modules.projects.router import router as projects_router
-from app.modules.projects.service import import_sheet_projects
+from app.modules.projects.service import drop_admin_members, register_projects
 from app.modules.users.router import router as users_router
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -25,7 +25,8 @@ async def lifespan(_: FastAPI):
     db = SessionLocal()
     try:
         seed_admin(db)
-        await import_sheet_projects(db)
+        register_projects(db)
+        drop_admin_members(db)
     finally:
         db.close()
     yield

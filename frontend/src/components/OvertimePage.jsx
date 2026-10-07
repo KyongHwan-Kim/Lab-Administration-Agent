@@ -107,8 +107,8 @@ export function OvertimePage({ section }) {
       <div className={section === "pdf" ? "space-y-5" : "hidden"}>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">영수증 등록</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-            배달 내역과 영수증 사진을 올리면 사용일자, 금액, 시각, 가게 이름을 읽고 사용 내역을 만듭니다. 회의시간은 사용시각 앞뒤 2시간, 회의장소는 배달지, 추천 인원 수는 1인 12,000원 한도로 계산합니다.
+          <p className="mt-2 text-sm leading-6 text-muted">
+            배달 내역과 영수증 사진을 올리면 AI가 사용일자, 금액, 시각, 가게 이름을 읽습니다. 같은 결제는 한 줄입니다. 추출 결과를 확인한 뒤 고치고 저장하면 사용 내역에 들어갑니다. 카드 끝자리가 맞으면 프로젝트가 미리 선택됩니다.
           </p>
         </div>
         <PdfComposer />

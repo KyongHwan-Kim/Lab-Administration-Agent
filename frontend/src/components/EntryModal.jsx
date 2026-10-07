@@ -50,7 +50,7 @@ export function EntryModal({ project, onClose, onSaved }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold">항목 추가</h2>
-            <p className="mt-1 text-sm text-muted">{project.name}에 저장됩니다. 원본 시트에는 기록되지 않습니다.</p>
+            <p className="mt-1 text-sm text-muted">{project.name}에 저장됩니다.</p>
           </div>
           <button type="button" className="text-sm text-muted" onClick={onClose}>
             닫기

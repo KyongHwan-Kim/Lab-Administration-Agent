@@ -7,10 +7,17 @@ from app.core.deps import get_current_user, require_admin
 from app.modules.auth.router import to_user_out
 from app.modules.auth.schemas import UserOut
 from app.modules.users.models import User
-from app.modules.users.schemas import CreateUserRequest, PasswordChangeRequest, ProfileUpdateRequest
+from app.modules.users.schemas import (
+    BulkCreateRequest,
+    BulkCreateResponse,
+    CreateUserRequest,
+    PasswordChangeRequest,
+    ProfileUpdateRequest,
+)
 from app.modules.users.service import (
     change_password,
     create_user,
+    create_users,
     delete_signature,
     get_user,
     list_users,
@@ -34,6 +41,16 @@ def post_user(
     db: Session = Depends(get_db),
 ) -> UserOut:
     return to_user_out(create_user(db, body))
+
+
+@router.post("/bulk", response_model=BulkCreateResponse)
+def post_users(
+    body: BulkCreateRequest,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> BulkCreateResponse:
+    created, errors = create_users(db, body.users)
+    return BulkCreateResponse(created=created, errors=errors)
 
 
 @router.post("/me/signature", response_model=UserOut)

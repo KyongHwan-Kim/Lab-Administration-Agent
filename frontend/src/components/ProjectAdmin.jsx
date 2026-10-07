@@ -218,7 +218,8 @@ export function ProjectAdmin() {
     }
   }
 
-  const availableUsers = users.filter((user) => !selected?.members.some((member) => member.user_id === user.id));
+  const participants = users.filter((user) => !user.is_admin);
+  const availableUsers = participants.filter((user) => !selected?.members.some((member) => member.user_id === user.id));
 
   return (
     <div className="space-y-5">
@@ -246,29 +247,24 @@ export function ProjectAdmin() {
 
       {error && <p className="text-sm text-copper">{error}</p>}
 
-      <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <ul className="space-y-1">
+      <label className="block text-sm">
+        등록된 프로젝트
+        <select
+          value={selectedId ?? ""}
+          onChange={(event) => setSelectedId(Number(event.target.value))}
+          className="mt-1 block w-full max-w-md rounded-xl border border-line bg-white px-3 py-2"
+        >
+          {projects.length === 0 && <option value="">등록된 프로젝트가 없습니다</option>}
           {projects.map((project) => (
-            <li key={project.id}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(project.id)}
-                className={`w-full rounded-xl px-3 py-2 text-left text-sm ${
-                  project.id === selectedId ? "bg-ink text-white" : "bg-card text-ink"
-                }`}
-              >
-                {project.name}
-                <span className={`mt-0.5 block text-xs ${project.id === selectedId ? "text-white/70" : "text-muted"}`}>
-                  {project.project_number ? `${project.project_number} · ` : ""}
-                  참여 {project.members.length}명 · 카드 {(project.cards || []).length}장
-                </span>
-              </button>
-            </li>
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
           ))}
-        </ul>
+        </select>
+      </label>
 
-        {selected ? (
-          <section className="rounded-3xl border border-line bg-card p-4 sm:p-6">
+      {selected ? (
+        <section className="rounded-3xl border border-line bg-card p-4 sm:p-6">
             <form onSubmit={saveProfile} className="space-y-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 {PROFILE_FIELDS.map(([key, label]) => (
@@ -335,7 +331,7 @@ export function ProjectAdmin() {
                       }
                       className="rounded-xl border border-line bg-white px-3 py-2 text-sm"
                     >
-                      {users.map((user) => (
+                      {participants.map((user) => (
                         <option key={user.id} value={user.id}>
                           {userLabel(user)}
                         </option>
@@ -443,11 +439,10 @@ export function ProjectAdmin() {
                 );
               })}
             </ul>
-          </section>
-        ) : (
-          <p className="text-sm text-muted">등록된 프로젝트가 없습니다.</p>
-        )}
-      </div>
+        </section>
+      ) : (
+        <p className="text-sm text-muted">등록된 프로젝트가 없습니다.</p>
+      )}
     </div>
   );
 }

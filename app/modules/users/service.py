@@ -3,13 +3,14 @@ import re
 from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
+from pydantic import ValidationError
 from PIL import Image, ImageOps
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.security import hash_password, verify_password
 from app.modules.users.models import User
-from app.modules.users.schemas import CreateUserRequest, PasswordChangeRequest, ProfileUpdateRequest
+from app.modules.users.schemas import BulkRowError, BulkUserInput, CreateUserRequest, PasswordChangeRequest, ProfileUpdateRequest
 
 MAX_SIGNATURE_BYTES = 5 * 1024 * 1024
 MAX_SIGNATURE_WIDTH = 1200
@@ -40,6 +41,21 @@ def create_user(db: Session, body: CreateUserRequest) -> User:
     db.commit()
     db.refresh(user)
     return user
+
+
+def create_users(db: Session, bodies: list[BulkUserInput]) -> tuple[int, list[BulkRowError]]:
+    created = 0
+    errors: list[BulkRowError] = []
+    for index, body in enumerate(bodies, start=1):
+        try:
+            create_user(db, CreateUserRequest.model_validate(body.model_dump()))
+        except ValidationError:
+            errors.append(BulkRowError(row=index, detail="이름, 이메일, 아이디, 비밀번호 형식을 확인해 주세요."))
+        except HTTPException as exc:
+            errors.append(BulkRowError(row=index, detail=str(exc.detail)))
+        else:
+            created += 1
+    return created, errors
 
 
 def update_profile(db: Session, user: User, body: ProfileUpdateRequest) -> User:

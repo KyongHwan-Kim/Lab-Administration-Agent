@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.modules.overtime.models import OvertimeEntry, SheetReceipt, SheetRow, WorkLog
-from app.modules.overtime.sheets import FALLBACK_SHEETS, list_projects as list_sheet_projects
+from app.modules.overtime.sheets import FALLBACK_SHEETS
 from app.modules.projects.models import ExternalAttendee, Project, ProjectCard, ProjectMember
 from app.modules.projects.schemas import (
     AttendeeOptions,
@@ -31,7 +31,7 @@ def list_managed_projects(db: Session) -> list[dict[str, str | int]]:
 def list_attendee_options(db: Session, gid: str) -> AttendeeOptions:
     project = find_project_by_key(db, gid)
     return AttendeeOptions(
-        members=[_member_out(member) for member in project.members],
+        members=[_member_out(member) for member in project.members if not _is_admin_member(member)],
         externals=[_external_out(row) for row in db.query(ExternalAttendee).order_by(ExternalAttendee.id).all()],
     )
 
@@ -120,9 +120,17 @@ def delete_project(db: Session, project_id: int) -> None:
     db.commit()
 
 
+def drop_admin_members(db: Session) -> None:
+    admin_ids = [user.id for user in db.query(User).filter(User.is_admin.is_(True)).all()]
+    if not admin_ids:
+        return
+    db.query(ProjectMember).filter(ProjectMember.user_id.in_(admin_ids)).delete(synchronize_session=False)
+    db.commit()
+
+
 def add_member(db: Session, project_id: int, body: MemberWrite) -> ProjectOut:
     project = _get_project(db, project_id)
-    _ensure_user(db, body.user_id)
+    _ensure_participant(db, body.user_id)
     if any(member.user_id == body.user_id for member in project.members):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 참여 중인 사용자입니다.")
     project.members.append(ProjectMember(user_id=body.user_id, role=body.role.strip()))
@@ -135,7 +143,7 @@ def update_member(db: Session, project_id: int, member_id: int, body: MemberUpda
     project = _get_project(db, project_id)
     member = _get_member(project, member_id)
     if body.user_id is not None and body.user_id != member.user_id:
-        _ensure_user(db, body.user_id)
+        _ensure_participant(db, body.user_id)
         if any(item.user_id == body.user_id for item in project.members):
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="이미 참여 중인 사용자입니다.")
         member.user_id = body.user_id
@@ -202,20 +210,11 @@ def match_card_project(db: Session, card_number: str, matched_project: str = "")
     return None
 
 
-async def import_sheet_projects(db: Session) -> None:
+def register_projects(db: Session) -> None:
     if db.query(Project).first() is not None:
         return
-    try:
-        sheets = await list_sheet_projects()
-    except HTTPException:
-        sheets = [{"gid": gid, "name": name} for gid, name in FALLBACK_SHEETS]
-    seen: set[str] = set()
-    for item in sheets:
-        name = str(item["name"]).strip()
-        if not name or name in seen:
-            continue
-        seen.add(name)
-        db.add(Project(name=name, sheet_gid=str(item["gid"])))
+    for gid, name in FALLBACK_SHEETS:
+        db.add(Project(name=name, sheet_gid=gid))
     db.commit()
 
 
@@ -278,6 +277,17 @@ def _ensure_user(db: Session, user_id: int) -> User:
     if user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
     return user
+
+
+def _ensure_participant(db: Session, user_id: int) -> User:
+    user = _ensure_user(db, user_id)
+    if user.is_admin:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="관리자는 참여 인원으로 지정할 수 없습니다.")
+    return user
+
+
+def _is_admin_member(member: ProjectMember) -> bool:
+    return member.user is not None and member.user.is_admin
 
 
 def _profile(body: ProjectWrite) -> dict[str, str]:
@@ -351,7 +361,7 @@ def _to_out(project: Project) -> ProjectOut:
         funding_agency=project.funding_agency or "",
         program_name=project.program_name or "",
         research_title=project.research_title or "",
-        members=[_member_out(member) for member in project.members],
+        members=[_member_out(member) for member in project.members if not _is_admin_member(member)],
         cards=[_card_out(card) for card in project.cards],
     )
 

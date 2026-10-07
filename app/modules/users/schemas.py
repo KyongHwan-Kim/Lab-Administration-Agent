@@ -8,6 +8,27 @@ class CreateUserRequest(BaseModel):
     password: str = Field(min_length=4, max_length=128)
 
 
+class BulkUserInput(BaseModel):
+    name: str = ""
+    email: str = ""
+    username: str = ""
+    password: str = ""
+
+
+class BulkCreateRequest(BaseModel):
+    users: list[BulkUserInput] = Field(min_length=1, max_length=100)
+
+
+class BulkRowError(BaseModel):
+    row: int
+    detail: str
+
+
+class BulkCreateResponse(BaseModel):
+    created: int
+    errors: list[BulkRowError]
+
+
 class ProfileUpdateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
 

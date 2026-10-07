@@ -77,18 +77,19 @@ export function LogoAdmin({ revision, onChanged }) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">로고 변경</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-          로그인 화면과 왼쪽 메뉴 위쪽에 표시되는 로고를 바꿉니다.
+          등록한 로고는 로그인 화면 왼쪽 위와 메뉴 아래에 나타납니다. 등록하지 않으면 그 자리는 비워 둡니다.
         </p>
       </div>
       <form onSubmit={save} className="max-w-xl rounded-3xl border border-line bg-card p-4 sm:p-6">
-        <div className="rounded-2xl bg-ink p-6">
+        <div className="grid min-h-24 place-items-center rounded-2xl bg-ink p-6">
           {preview ? (
             <img src={preview} alt="선택한 로고" className="h-14 w-auto max-w-full" />
           ) : (
             <BrandLogo revision={revision} className="h-14 w-auto max-w-full" />
           )}
+          {!preview && !custom && <p className="text-sm text-white/60">등록된 로고가 없습니다.</p>}
         </div>
-        <p className="mt-3 text-sm text-muted">{custom ? "직접 등록한 로고를 사용 중입니다." : "기본 로고를 사용 중입니다."}</p>
+        <p className="mt-3 text-sm text-muted">{custom ? "등록한 로고를 사용 중입니다." : "아직 등록한 로고가 없습니다."}</p>
         <label className="mt-4 block text-sm">
           이미지 선택
           <input
@@ -109,7 +110,7 @@ export function LogoAdmin({ revision, onChanged }) {
           </button>
           {custom && (
             <button type="button" disabled={pending} onClick={reset} className="rounded-xl border border-line px-4 py-2 text-sm">
-              기본 로고로 되돌리기
+              등록한 로고 삭제
             </button>
           )}
         </div>

@@ -115,9 +115,7 @@ export function Shell({ user, onLogout, onUserChange }) {
           </div>
         </nav>
         <div className="mt-auto space-y-1 px-4 py-4">
-          <div className="mb-3 px-1">
-            <BrandLogo revision={logoRevision} className="h-10 w-auto max-w-full" />
-          </div>
+          <BrandLogo revision={logoRevision} className="mb-3 h-10 w-auto max-w-full" />
           <button
             type="button"
             className={`w-full rounded-xl px-3 py-1.5 text-left text-sm ${

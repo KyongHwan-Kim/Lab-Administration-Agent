@@ -1,9 +1,28 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, downloadBlob } from "../api";
 
+const ROW_COLUMNS = [
+  "영수증 제출",
+  "사용일자",
+  "사용금액",
+  "연구비항목",
+  "사용목적",
+  "사용시각",
+  "사용처",
+  "회의시간",
+  "회의지역",
+  "회의장소",
+  "총인원",
+  "회의참석자",
+  "회의내용",
+  "추천인원",
+];
+const EXPENSE_CATEGORIES = ["초과근무", "회의비"];
+
 export function PdfComposer() {
   const [delivery, setDelivery] = useState([]);
   const [receipt, setReceipt] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [extracting, setExtracting] = useState(false);
@@ -26,6 +45,34 @@ export function PdfComposer() {
     };
   }, [deliveryPreviews, receiptPreviews]);
 
+  useEffect(() => {
+    api("/api/overtime/projects")
+      .then(setProjects)
+      .catch(() => setProjects([]));
+  }, []);
+
+  function replaceFiles(kind, files) {
+    if (kind === "delivery") setDelivery(files);
+    else setReceipt(files);
+    setExtracted([]);
+  }
+
+  function updateRow(key, patch) {
+    setExtracted((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  }
+
+  function updateValue(key, column, value) {
+    setExtracted((current) =>
+      current.map((row) => {
+        if (row.key !== key) return row;
+        const values = { ...row.values, [column]: value };
+        if (column === "사용시각") values["회의시간"] = meetingWindow(value);
+        if (column === "사용금액") values["추천인원"] = suggestedHeadcount(value);
+        return { ...row, values };
+      }),
+    );
+  }
+
   async function extract() {
     setError("");
     setExtracting(true);
@@ -33,12 +80,38 @@ export function PdfComposer() {
       const body = new FormData();
       delivery.forEach((file) => body.append("delivery", file));
       receipt.forEach((file) => body.append("receipt", file));
-      const result = await api("/api/overtime/receipts", { method: "POST", body });
-      setExtracted(result.items || []);
+      const result = await api("/api/overtime/receipts/preview", { method: "POST", body });
+      setExtracted(
+        (result.items || []).map((item, index) => ({
+          key: `${Date.now()}-${index}`,
+          projectGid: item.project_gid || "",
+          values: item.values || {},
+          editing: false,
+          saved: false,
+          saving: false,
+        })),
+      );
     } catch (err) {
       setError(err.message);
     } finally {
       setExtracting(false);
+    }
+  }
+
+  async function saveRow(row) {
+    setError("");
+    updateRow(row.key, { saving: true });
+    try {
+      const body = new FormData();
+      body.append("payload", JSON.stringify(row.values));
+      body.append("gid", row.projectGid || "");
+      delivery.forEach((file) => body.append("delivery", file));
+      receipt.forEach((file) => body.append("receipt", file));
+      await api("/api/overtime/receipts/save", { method: "POST", body });
+      updateRow(row.key, { saving: false, saved: true, editing: false });
+    } catch (err) {
+      setError(err.message);
+      updateRow(row.key, { saving: false });
     }
   }
 
@@ -67,7 +140,7 @@ export function PdfComposer() {
           onClick={extract}
           className="rounded-xl bg-pine px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          {extracting ? "추출 중" : "항목 추출"}
+          {extracting ? "추출 중" : "AI 내역 추출"}
         </button>
         <button
           type="button"
@@ -78,24 +151,105 @@ export function PdfComposer() {
           {pending ? "만드는 중" : "PDF 다운로드"}
         </button>
       </div>
-      <p className="mt-3 text-xs text-muted">
-        같은 결제는 항목 하나입니다. 영수증 카드 번호의 끝자리가 프로젝트에 등록된 끝자리와 같으면 그 프로젝트로 배정되고, 아니면 프로젝트 할당 전에 들어갑니다. 회의시간은 사용시각 앞뒤 2시간, 추천 인원 수는 1인 12,000원 한도의 올림입니다.
-      </p>
       {extracted.length > 0 && (
-        <ul className="mt-3 space-y-1 text-sm">
-          {extracted.map((item) => (
-            <li key={item.id} className="rounded-xl bg-paper px-3 py-2">
-              {[item.project_name || "프로젝트 할당 전", item.values?.사용일자, item.values?.사용시각, item.values?.사용처, item.values?.사용금액, item.values?.회의시간, item.values?.회의장소, item.values?.추천인원 ? `추천 인원 수 ${item.values.추천인원}` : item.values?.총인원]
-                .filter(Boolean)
-                .join(" · ") || "읽은 내용이 없습니다. 프로젝트 할당 전에서 직접 입력해 주세요."}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
+            <thead>
+              <tr className="border-b border-line text-xs text-muted">
+                <th className="px-2 py-2 font-medium">프로젝트</th>
+                {ROW_COLUMNS.map((column) => (
+                  <th key={column} className="px-2 py-2 font-medium whitespace-nowrap">
+                    {column === "추천인원" ? "추천 인원 수" : column}
+                  </th>
+                ))}
+                <th className="px-2 py-2 font-medium"> </th>
+              </tr>
+            </thead>
+            <tbody>
+              {extracted.map((row) => (
+                <tr key={row.key} className="border-b border-line align-top">
+                  <td className="px-2 py-2">
+                    {row.editing ? (
+                      <select
+                        value={row.projectGid}
+                        onChange={(event) => updateRow(row.key, { projectGid: event.target.value })}
+                        className="w-36 rounded-lg border border-line bg-white px-2 py-1"
+                      >
+                        <option value="">프로젝트 할당 전</option>
+                        {projects.map((project) => (
+                          <option key={project.gid} value={project.gid}>
+                            {project.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="whitespace-nowrap">{projectName(projects, row.projectGid)}</span>
+                    )}
+                  </td>
+                  {ROW_COLUMNS.map((column) => (
+                    <td key={column} className="px-2 py-2">
+                      {row.editing && column !== "추천인원" ? (
+                        column === "연구비항목" ? (
+                          <select
+                            value={row.values[column] || ""}
+                            onChange={(event) => updateValue(row.key, column, event.target.value)}
+                            className="w-28 rounded-lg border border-line bg-white px-2 py-1"
+                          >
+                            <option value="">선택</option>
+                            {EXPENSE_CATEGORIES.map((category) => (
+                              <option key={category} value={category}>
+                                {category}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            value={row.values[column] || ""}
+                            onChange={(event) => updateValue(row.key, column, event.target.value)}
+                            className={`rounded-lg border border-line bg-white px-2 py-1 ${column === "회의내용" || column === "회의장소" ? "w-48" : "w-28"}`}
+                          />
+                        )
+                      ) : (
+                        <span className="block max-w-48 whitespace-pre-wrap">
+                          {column === "추천인원" && row.values[column] ? `${row.values[column]}` : row.values[column] || ""}
+                        </span>
+                      )}
+                    </td>
+                  ))}
+                  <td className="px-2 py-2">
+                    {row.saved ? (
+                      <span className="whitespace-nowrap text-xs text-muted">저장됨</span>
+                    ) : (
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          disabled={row.saving}
+                          onClick={() => updateRow(row.key, { editing: !row.editing })}
+                          className="whitespace-nowrap rounded-lg border border-line px-2 py-1 text-xs"
+                        >
+                          {row.editing ? "보기" : "수정"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={row.saving}
+                          onClick={() => saveRow(row)}
+                          className="whitespace-nowrap rounded-lg bg-pine px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
+                        >
+                          {row.saving ? "저장 중" : "저장"}
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       <div className="mt-5 grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
         <div className="space-y-4">
-          <FileField label="배달 내역" files={delivery} onChange={setDelivery} />
-          <FileField label="영수증" files={receipt} onChange={setReceipt} />
+          <FileField label="배달 내역" files={delivery} onChange={(files) => replaceFiles("delivery", files)} />
+          <FileField label="영수증" files={receipt} onChange={(files) => replaceFiles("receipt", files)} />
           {error && <p className="text-sm text-copper">{error}</p>}
         </div>
         <div className="min-h-40 space-y-4 rounded-2xl bg-paper p-3">
@@ -120,6 +274,27 @@ export function PdfComposer() {
       </div>
     </section>
   );
+}
+
+function projectName(projects, gid) {
+  if (!gid) return "프로젝트 할당 전";
+  return projects.find((project) => project.gid === gid)?.name || "프로젝트 할당 전";
+}
+
+function meetingWindow(usageTime) {
+  const match = /^(\d{2}):(\d{2})$/.exec(usageTime.trim());
+  if (!match) return "";
+  const base = Number(match[1]) * 60 + Number(match[2]);
+  const start = (base - 120 + 24 * 60) % (24 * 60);
+  const end = (base + 120) % (24 * 60);
+  const clock = (minutes) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  return `${clock(start)}~${clock(end)}`;
+}
+
+function suggestedHeadcount(amountText) {
+  const amount = Number(String(amountText).replace(/[^\d]/g, ""));
+  if (!amount) return "";
+  return `${Math.ceil(amount / 12000)}명`;
 }
 
 function PreviewFigure({ item, label }) {

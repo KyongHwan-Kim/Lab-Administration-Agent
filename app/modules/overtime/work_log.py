@@ -82,11 +82,15 @@ def _paint_page(pdf, profile, workers, signatures, **fields) -> None:
     y = PAGE_H - 30
 
     pdf.setFillColorRGB(0.15, 0.15, 0.15)
-    pdf.setFont(FONT_NAME, 8)
+    pdf.setFont(FONT_NAME, 9)
     pdf.drawString(left, y - 8, "| 필수 첨부 양식 |")
-    y -= 26
-    _tracked_title(pdf, "초과근무일지", y - 14, 15, 6)
-    y -= 24
+    y -= 16
+    _rule(pdf, left, y, width)
+    y -= 27
+    _tracked_title(pdf, "초과근무일지", y, 15, 8)
+    y -= 8
+    _rule(pdf, left, y, width)
+    y -= 12
 
     label_w = 74
     value_w = (width - label_w * 2) / 2
@@ -99,19 +103,19 @@ def _paint_page(pdf, profile, workers, signatures, **fields) -> None:
         _cell(pdf, left, y - info_h, label_w, info_h, fill=True)
         _label(pdf, left_label[1], left, y - info_h, label_w, info_h, required=left_label[0])
         _cell(pdf, left + label_w, y - info_h, value_w, info_h)
-        _cell_text(pdf, left_value, left + label_w, y - info_h, value_w, info_h, 8)
+        _cell_text(pdf, left_value, left + label_w, y - info_h, value_w, info_h, 9)
         _cell(pdf, left + label_w + value_w, y - info_h, label_w, info_h, fill=True)
         _label(pdf, right_label[1], left + label_w + value_w, y - info_h, label_w, info_h, required=right_label[0])
         _cell(pdf, left + label_w * 2 + value_w, y - info_h, value_w, info_h)
-        _cell_text(pdf, right_value, left + label_w * 2 + value_w, y - info_h, value_w, info_h, 8)
+        _cell_text(pdf, right_value, left + label_w * 2 + value_w, y - info_h, value_w, info_h, 9)
         y -= info_h
     _cell(pdf, left, y - info_h, label_w, info_h, fill=True)
     _label(pdf, "연구과제명", left, y - info_h, label_w, info_h)
     _cell(pdf, left + label_w, y - info_h, width - label_w, info_h)
-    _cell_text(pdf, profile.get("research_title", ""), left + label_w, y - info_h, width - label_w, info_h, 7.5)
-    y -= info_h + 8
+    _cell_text(pdf, profile.get("research_title", ""), left + label_w, y - info_h, width - label_w, info_h, 8.5)
+    y -= info_h + 12
 
-    date_w, worker_w, content_w, place_w, time_w = 108, 68, 118, 92, 70
+    date_w, worker_w, content_w, place_w, time_w = 88, 68, 138, 92, 70
     sign_w = width - (date_w + worker_w + content_w + place_w + time_w)
     columns = (date_w, worker_w, content_w, place_w, time_w, sign_w)
     header_h = 32
@@ -141,10 +145,10 @@ def _paint_page(pdf, profile, workers, signatures, **fields) -> None:
     for row in slots:
         for cell_x, cell_w in ((left, date_w), (left + date_w, worker_w), (time_x, time_w), (sign_x, sign_w)):
             _cell(pdf, cell_x, y - row_h, cell_w, row_h)
+        _date_cell(pdf, row, left, y - row_h, date_w, row_h)
         if row:
-            _date_cell(pdf, row, left, y - row_h, date_w, row_h)
-            _cell_text(pdf, row.get("worker", ""), left + date_w, y - row_h, worker_w, row_h, 8)
-            _cell_text(pdf, row.get("time", ""), time_x, y - row_h, time_w, row_h, 7)
+            _cell_text(pdf, row.get("worker", ""), left + date_w, y - row_h, worker_w, row_h, 9)
+            _cell_text(pdf, row.get("time", ""), time_x, y - row_h, time_w, row_h, 8)
             signature = _find_signature(str(row.get("worker", "")), signatures)
             if signature is not None:
                 _image_at(pdf, signature, sign_x + 2, y - row_h + 2, sign_w - 4, row_h - 4)
@@ -152,28 +156,67 @@ def _paint_page(pdf, profile, workers, signatures, **fields) -> None:
     body_h = body_top - y
     _cell(pdf, content_x, y, content_w, body_h)
     _cell(pdf, place_x, y, place_w, body_h)
-    _cell_text(pdf, fields["content"], content_x, y, content_w, body_h, 7.5)
-    _cell_text(pdf, fields["place"], place_x, y, place_w, body_h, 7.5)
+    _cell_text(pdf, fields["content"], content_x, y, content_w, body_h, 8.5)
+    _cell_text(pdf, fields["place"], place_x, y, place_w, body_h, 8.5)
     y -= 12
-
+    note_size = 8
+    box_h = 46
+    box_bottom = y - box_h
+    _cell(pdf, left, box_bottom, width, box_h)
+    text_x = left + 6
+    line_y = box_bottom + box_h - 14
+    _note_line(pdf, text_x, line_y, note_size, "[영수증첨부]", " : 상한 1인 30,000원, 법인신용카드 영수증만 인정")
+    _note_line(pdf, text_x, line_y - 12, note_size, "[필수항목]", " *본인사인에는 근무자의 자필사인 기재")
+    indent = pdfmetrics.stringWidth("※ [필수항목] ", FONT_NAME, note_size)
     pdf.setFillColorRGB(0, 0, 0)
-    pdf.setFont(FONT_NAME, 7)
-    pdf.drawString(left, y - 8, "※ [영수증첨부] : 상한 1인 30,000원, 법인신용카드 영수증만 인정")
-    pdf.drawString(left, y - 20, "※ [필수항목] *본인사인에는 근무자의 자필사인 기재")
-    pdf.drawString(left + 52, y - 32, "*연구책임자의 확인(날인 또는 사인) 기재하여 청구 시 파일 업로드함")
-    y -= 52
+    pdf.setFont(FONT_NAME, note_size)
+    pdf.drawString(text_x + indent, line_y - 24, "*연구책임자의 확인(날인 또는 사인) 기재하여 청구 시 파일 업로드함")
+    y = box_bottom - 8
 
     block_w = 210
     block_x = left + width - block_w
-    pdf.setFont(FONT_NAME, 9)
+    pdf.setFont(FONT_NAME, 10)
     pdf.setFillColorRGB(0.86, 0.15, 0.15)
     pdf.drawString(block_x, y - 12, "*")
     pdf.setFillColorRGB(0, 0, 0)
     pdf.drawString(block_x + 8, y - 12, "연구책임자")
     name = str(fields["investigator"] or "")
     pdf.drawCentredString(block_x + 118, y - 12, name)
+    pdf.drawCentredString(block_x + 180, y - 12, "(인)")
     if fields["stamp"] is not None:
         _image_at(pdf, fields["stamp"], block_x + 156, y - 28, 48, 36)
+
+
+def _rule(pdf, x: float, y: float, width: float) -> None:
+    pdf.setStrokeColorRGB(0.863, 0.149, 0.149)
+    pdf.setLineWidth(3)
+    pdf.line(x, y, x + width, y)
+
+
+def _note_line(pdf, x: float, y: float, size: float, label: str, rest: str) -> None:
+    prefix = "※ "
+    pdf.setFillColorRGB(0, 0, 0)
+    pdf.setFont(FONT_NAME, size)
+    pdf.drawString(x, y, prefix)
+    cursor = x + pdfmetrics.stringWidth(prefix, FONT_NAME, size)
+    _bold_text(pdf, cursor, y, label, size)
+    cursor += pdfmetrics.stringWidth(label, FONT_NAME, size)
+    pdf.setFillColorRGB(0, 0, 0)
+    pdf.setFont(FONT_NAME, size)
+    pdf.drawString(cursor, y, rest)
+
+
+def _bold_text(pdf, x: float, y: float, text: str, size: float) -> None:
+    pdf.setFillColorRGB(0, 0, 0)
+    pdf.setStrokeColorRGB(0, 0, 0)
+    pdf.setLineWidth(0.45)
+    pdf.setFont(FONT_NAME, size)
+    text_object = pdf.beginText(x, y)
+    text_object.setTextRenderMode(2)
+    text_object.setFont(FONT_NAME, size)
+    text_object.textOut(text)
+    pdf.drawText(text_object)
+    pdf.setLineWidth(0.6)
 
 
 def _tracked_title(pdf, text: str, baseline: float, size: float, gap: float) -> None:
@@ -198,7 +241,7 @@ def _cell(pdf, x: float, y: float, width: float, height: float, fill: bool = Fal
 
 
 def _label(pdf, text: str, x: float, y: float, width: float, height: float, required: bool = False) -> None:
-    size = 7.5
+    size = 8.5
     pdf.setFont(FONT_NAME, size)
     star_w = pdfmetrics.stringWidth("*", FONT_NAME, size) if required else 0
     text_w = pdfmetrics.stringWidth(text, FONT_NAME, size)
@@ -215,17 +258,23 @@ def _header_label(pdf, title: str, subtitle: str, x: float, y: float, width: flo
     if subtitle:
         _label(pdf, title, x, y + height / 2 - 1, width, height / 2, required=required)
         pdf.setFillColorRGB(0, 0, 0)
-        pdf.setFont(FONT_NAME, 6.5)
+        pdf.setFont(FONT_NAME, 7.5)
         pdf.drawCentredString(x + width / 2, y + 6, subtitle)
         return
     _label(pdf, title, x, y, width, height, required=required)
 
 
-def _date_cell(pdf, row: dict, x: float, y: float, width: float, height: float) -> None:
-    pdf.setFillColorRGB(0, 0, 0)
-    pdf.setFont(FONT_NAME, 8)
+def _date_cell(pdf, row: dict | None, x: float, y: float, width: float, height: float) -> None:
     part = width / 3
-    baseline = y + (height - 8) / 2
+    pdf.setStrokeColorRGB(0, 0, 0)
+    pdf.setLineWidth(0.6)
+    pdf.line(x + part, y, x + part, y + height)
+    pdf.line(x + 2 * part, y, x + 2 * part, y + height)
+    if not row:
+        return
+    pdf.setFillColorRGB(0, 0, 0)
+    pdf.setFont(FONT_NAME, 9)
+    baseline = y + (height - 9) / 2
     for index, key in enumerate(("year", "month", "day")):
         pdf.drawCentredString(x + part * index + part / 2, baseline, str(row.get(key, "") or ""))
 
