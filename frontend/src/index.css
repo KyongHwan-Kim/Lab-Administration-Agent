@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: Pretendard, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+  --color-ink: #1c2430;
+  --color-paper: #f4f1eb;
+  --color-card: #fffdfb;
+  --color-line: #e5dfd6;
+  --color-copper: #9a4d2f;
+  --color-copper-dark: #7c3d24;
+  --color-pine: #1e5c56;
+  --color-muted: #6d655c;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}

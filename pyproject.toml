@@ -1,0 +1,23 @@
+[project]
+name = "lab-admin"
+version = "0.1.0"
+description = "연구실 행정 대시보드"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.14",
+    "bcrypt>=4.2",
+    "fastapi>=0.115",
+    "httpx>=0.28",
+    "itsdangerous>=2.2",
+    "pillow>=11.0",
+    "psycopg[binary]>=3.2",
+    "pytesseract>=0.3.13",
+    "pydantic-settings>=2.6",
+    "python-multipart>=0.0.17",
+    "reportlab>=4.2",
+    "sqlalchemy>=2.0",
+    "uvicorn[standard]>=0.32",
+]
+
+[tool.uv]
+package = false
