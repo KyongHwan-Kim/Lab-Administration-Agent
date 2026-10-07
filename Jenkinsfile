@@ -60,7 +60,7 @@ pipeline {
                                 *[!A-Za-z0-9_./-]*) echo "DEPLOY_PATH 에 허용되지 않는 문자가 있습니다."; exit 1 ;;
                             esac
 
-                            find nginx -name '*.sh' -exec sh -c 'tr -d "\r" < "$1" > "$1.tmp" && mv "$1.tmp" "$1"' _ {} \;
+                            find nginx -name '*.sh' -exec sh -c 'tr -d "\\r" < "$1" > "$1.tmp" && mv "$1.tmp" "$1"' _ {} \\;
 
                             target="${DEPLOY_USER}@${DEPLOY_HOST}"
                             ssh_opts="-o StrictHostKeyChecking=accept-new"
