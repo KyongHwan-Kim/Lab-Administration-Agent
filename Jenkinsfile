@@ -20,8 +20,8 @@ pipeline {
     }
 
     parameters {
-        string(name: 'DEPLOY_HOST', description: '배포 서버 호스트 또는 IP')
-        string(name: 'DEPLOY_USER', defaultValue: 'deploy', description: 'SSH 사용자. lab-admin-ssh 자격 증명의 사용자와 같아야 합니다.')
+        string(name: 'DEPLOY_HOST', defaultValue: '133.186.250.11', description: '배포 서버 호스트 또는 IP')
+        string(name: 'DEPLOY_USER', defaultValue: 'ubuntu', description: 'SSH 사용자. lab-admin-ssh 자격 증명의 사용자와 같아야 합니다.')
         string(name: 'DEPLOY_PATH', defaultValue: '/home/ubuntu/lab-administration-agent', description: '서버의 배포 디렉터리')
     }
 
